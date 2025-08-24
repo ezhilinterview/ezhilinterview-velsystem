@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import Slideshow from '../components/Slideshow';
 import ProductCard from '../components/ProductCard';
 import ContactForm from '../components/ContactForm';
+import ClientCarousel from '../components/ClientCarousel';
 
 const Home = React.memo(() => {
   const itProducts = useMemo(() => [
@@ -231,6 +232,8 @@ const Home = React.memo(() => {
       </section>
 
       {/* Contact Form Section */}
+      <ClientCarousel />
+      
       <ContactForm />
     </div>
   );
