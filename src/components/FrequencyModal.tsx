@@ -1,24 +1,33 @@
 import { useState } from 'react';
 import { X, RefreshCw } from 'lucide-react';
-import { FREQUENCY_OPTIONS, FrequencyType } from '../types/scheduledTransaction';
+import { FREQUENCY_OPTIONS, FrequencyType, END_TYPE_OPTIONS, EndType } from '../types/scheduledTransaction';
 
 interface FrequencyModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentFrequency: FrequencyType;
-  onUpdate: (frequency: FrequencyType) => void;
+  currentEndType: EndType;
+  currentInterval: number;
+  currentOccurrence: number;
+  onUpdate: (frequency: FrequencyType, endType: EndType, interval: number, occurrence: number) => void;
 }
 
 export default function FrequencyModal({ 
   isOpen, 
   onClose, 
   currentFrequency,
-  onUpdate 
+  currentEndType,
+  currentInterval,
+  currentOccurrence,
+  onUpdate
 }: FrequencyModalProps) {
   const [selectedFrequency, setSelectedFrequency] = useState(currentFrequency);
+  const [selectedEndType, setSelectedEndType] = useState(currentEndType);
+  const [selectedInterval, setSelectedInterval] = useState(currentInterval);
+  const [selectedOccurrence, setSelectedOccurrence] = useState(currentOccurrence);
 
   const handleUpdate = () => {
-    onUpdate(selectedFrequency);
+    onUpdate(selectedFrequency, selectedEndType, selectedInterval, selectedOccurrence);
     onClose();
   };
 
@@ -43,25 +52,101 @@ export default function FrequencyModal({
         <div className="p-4 sm:p-6">
           <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Choose how often this transaction should repeat:</p>
           
-          <div className="space-y-2 sm:space-y-3">
+          <div className="space-y-4 sm:space-y-6">
+            {/* Frequency Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Frequency</label>
+              <div className="space-y-2">
             {Object.entries(FREQUENCY_OPTIONS).map(([value, label]) => (
               <button
                 key={value}
                 onClick={() => setSelectedFrequency(value as FrequencyType)}
-                className={`w-full p-3 sm:p-4 text-left border-2 rounded-lg transition-all ${
+                className={`w-full p-3 text-left border-2 rounded-lg transition-all ${
                   selectedFrequency === value
                     ? 'border-indigo-500 bg-indigo-50'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm sm:text-base font-medium text-gray-900">{label}</span>
+                  <span className="text-sm font-medium text-gray-900">{label}</span>
                   {selectedFrequency === value && (
                     <div className="w-4 h-4 bg-indigo-600 rounded-full"></div>
                   )}
                 </div>
               </button>
             ))}
+              </div>
+            </div>
+
+            {/* Frequency Interval */}
+            {selectedFrequency !== 'NONE' && (
+              <div>
+                <label htmlFor="interval" className="block text-sm font-medium text-gray-700 mb-2">
+                  Repeat every
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    id="interval"
+                    min="1"
+                    value={selectedInterval}
+                    onChange={(e) => setSelectedInterval(parseInt(e.target.value) || 1)}
+                    className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  />
+                  <span className="text-sm text-gray-600">
+                    {selectedFrequency === 'DAILY' ? 'day(s)' :
+                     selectedFrequency === 'WEEKLY' ? 'week(s)' :
+                     selectedFrequency === 'MONTHLY' ? 'month(s)' :
+                     selectedFrequency === 'YEARLY' ? 'year(s)' : ''}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* End Type */}
+            {selectedFrequency !== 'NONE' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Ends</label>
+                <div className="space-y-2">
+                  {Object.entries(END_TYPE_OPTIONS).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setSelectedEndType(value as EndType)}
+                      className={`w-full p-3 text-left border-2 rounded-lg transition-all ${
+                        selectedEndType === value
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-900">{label}</span>
+                        {selectedEndType === value && (
+                          <div className="w-4 h-4 bg-indigo-600 rounded-full"></div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Occurrence Count */}
+            {selectedEndType === 'OCCURRENCE' && (
+              <div>
+                <label htmlFor="occurrence" className="block text-sm font-medium text-gray-700 mb-2">
+                  Number of occurrences
+                </label>
+                <input
+                  type="number"
+                  id="occurrence"
+                  min="1"
+                  value={selectedOccurrence}
+                  onChange={(e) => setSelectedOccurrence(parseInt(e.target.value) || 1)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="Enter number of times to repeat"
+                />
+              </div>
+            )}
           </div>
         </div>
 

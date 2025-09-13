@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Trash2, Play, Pause, Calendar, TrendingUp, TrendingDown, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit, Trash2, Play, Pause, Calendar, TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react';
 import { 
   useUpcomingScheduledTransactions, 
   useCompletedScheduledTransactions,
@@ -16,12 +16,10 @@ const tabs = ['Upcoming', 'Completed'];
 
 function ScheduledTransactions() {
   const [activeTab, setActiveTab] = useState(0);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize] = useState(10);
   const [transactionToDelete, setTransactionToDelete] = useState<{ id: string; description: string } | null>(null);
 
-  const { data: upcomingData, isLoading: upcomingLoading } = useUpcomingScheduledTransactions(currentPage, pageSize);
-  const { data: completedData, isLoading: completedLoading } = useCompletedScheduledTransactions(currentPage, pageSize);
+  const { data: upcomingTransactions = [], isLoading: upcomingLoading } = useUpcomingScheduledTransactions();
+  const { data: completedTransactions = [], isLoading: completedLoading } = useCompletedScheduledTransactions();
   const deleteTransaction = useDeleteScheduledTransaction();
   const toggleTransaction = useToggleScheduledTransaction();
   const { formatCurrency } = useFormatters();
@@ -30,16 +28,13 @@ function ScheduledTransactions() {
   const getCurrentData = () => {
     switch (activeTab) {
       case 1:
-        return { data: completedData, isLoading: completedLoading };
+        return { data: completedTransactions, isLoading: completedLoading };
       default:
-        return { data: upcomingData, isLoading: upcomingLoading };
+        return { data: upcomingTransactions, isLoading: upcomingLoading };
     }
   };
 
-  const { data: currentData, isLoading } = getCurrentData();
-  const transactions = currentData?.content || [];
-  const totalPages = currentData?.totalPages || 0;
-  const totalElements = currentData?.totalElements || 0;
+  const { data: transactions, isLoading } = getCurrentData();
 
   const handleDeleteTransaction = async () => {
     if (transactionToDelete) {
@@ -60,26 +55,26 @@ function ScheduledTransactions() {
     }
   };
 
-  const getTransactionIcon = (type: number) => {
+  const getTransactionIcon = (type: string) => {
     switch (type) {
-      case 1: // Expense
+      case 'EXPENSE':
         return <TrendingDown className="w-5 h-5 text-red-600" />;
-      case 2: // Income
+      case 'INCOME':
         return <TrendingUp className="w-5 h-5 text-green-600" />;
-      case 3: // Transfer
+      case 'TRANSFER':
         return <ArrowUpDown className="w-5 h-5 text-blue-600" />;
       default:
         return <ArrowUpDown className="w-5 h-5 text-gray-600" />;
     }
   };
 
-  const getAmountColor = (type: number) => {
+  const getAmountColor = (type: string) => {
     switch (type) {
-      case 1: // Expense
+      case 'EXPENSE':
         return 'text-red-600';
-      case 2: // Income
+      case 'INCOME':
         return 'text-green-600';
-      case 3: // Transfer
+      case 'TRANSFER':
         return 'text-blue-600';
       default:
         return 'text-gray-600';
@@ -88,6 +83,15 @@ function ScheduledTransactions() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const minute = parseInt(minutes);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minute.toString().padStart(2, '0')} ${period}`;
   };
 
   if (isLoading) {
@@ -129,10 +133,7 @@ function ScheduledTransactions() {
           return (
             <button
               key={tab}
-              onClick={() => {
-                setActiveTab(index);
-                setCurrentPage(0);
-              }}
+              onClick={() => setActiveTab(index)}
               className={`flex-1 text-xs sm:text-sm font-medium rounded-lg py-2 transition-all duration-200 ${
                 active
                   ? "bg-white shadow text-black"
@@ -149,7 +150,7 @@ function ScheduledTransactions() {
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-base sm:text-lg font-semibold text-gray-900">
-            {tabs[activeTab]} Transactions ({totalElements})
+            {tabs[activeTab]} Transactions ({transactions.length})
           </h2>
         </div>
 
@@ -176,121 +177,91 @@ function ScheduledTransactions() {
             )}
           </div>
         ) : (
-          <>
-            <div className="divide-y divide-gray-200">
-              {transactions.map((transaction) => (
-                <div key={transaction.id} className="p-3 sm:p-4 lg:p-6 flex items-center justify-between">
-                  <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4 flex-1 min-w-0">
-                    <div className="flex-shrink-0">
-                      {transaction.category ? (
-                        <CategoryIcon
-                          icon={transaction.category.icon}
-                          color={transaction.category.color}
-                          size="sm"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                          {getTransactionIcon(transaction.type)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-1 sm:space-x-2 mb-1">
-                        <p className="text-sm sm:text-base font-medium text-gray-900 truncate">
-                          {transaction.description}
-                        </p>
-                        <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 flex-shrink-0">
-                          {SCHEDULED_TRANSACTION_TYPES[transaction.type.toString() as keyof typeof SCHEDULED_TRANSACTION_TYPES]}
-                        </span>
+          <div className="divide-y divide-gray-200">
+            {transactions.map((transaction) => (
+              <div key={transaction.id} className="p-3 sm:p-4 lg:p-6 flex items-center justify-between">
+                <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4 flex-1 min-w-0">
+                  <div className="flex-shrink-0">
+                    {transaction.category ? (
+                      <CategoryIcon
+                        icon={transaction.category.icon}
+                        color={transaction.category.color}
+                        size="sm"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        {getTransactionIcon(transaction.type)}
                       </div>
-
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 lg:space-x-4 text-xs sm:text-sm text-gray-500">
-                        <span>Next: {formatDate(transaction.nextExecutionDate)}</span>
-                        <span className="hidden sm:inline">• {FREQUENCY_OPTIONS[transaction.frequency]}</span>
-                        {transaction.earlyReminder > 0 && (
-                          <span className="hidden md:inline">• {transaction.earlyReminder} day(s) reminder</span>
-                        )}
-                        {transaction.account && (
-                          <span className="hidden lg:inline">• {transaction.account.name}</span>
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
-                    <div className="text-right">
-                      <p className={`text-sm sm:text-base font-semibold ${getAmountColor(transaction.type)}`}>
-                        {transaction.type === 1 ? '-' : transaction.type === 2 ? '+' : ''}
-                        {formatCurrency(transaction.amount)}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-1 sm:space-x-2 mb-1">
+                      <p className="text-sm sm:text-base font-medium text-gray-900 truncate">
+                        {transaction.description}
                       </p>
+                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 flex-shrink-0">
+                        {SCHEDULED_TRANSACTION_TYPES[transaction.type]}
+                      </span>
                     </div>
-
-                    <div className="flex items-center space-x-1 sm:space-x-2">
-                      <button
-                        onClick={() => handleToggleTransaction(transaction.id)}
-                        disabled={toggleTransaction.isPending}
-                        className="p-1.5 sm:p-2 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-50 rounded-md hover:bg-gray-50"
-                        title={transaction.isActive ? 'Pause' : 'Resume'}
-                      >
-                        {transaction.isActive ? (
-                          <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
-                        ) : (
-                          <Play className="w-4 h-4 sm:w-5 sm:h-5" />
-                        )}
-                      </button>
-                      <Link
-                        to={`/scheduled/edit/${transaction.id}`}
-                        className="p-1.5 sm:p-2 text-gray-400 hover:text-indigo-600 transition-colors rounded-md hover:bg-gray-50"
-                      >
-                        <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </Link>
-                      <button
-                        onClick={() => setTransactionToDelete({ id: transaction.id, description: transaction.description })}
-                        disabled={deleteTransaction.isPending}
-                        className="p-1.5 sm:p-2 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 rounded-md hover:bg-gray-50"
-                      >
-                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
+                    
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 lg:space-x-4 text-xs sm:text-sm text-gray-500">
+                      <span>Start: {formatDate(transaction.startDate)} at {formatTime(transaction.time)}</span>
+                      <span className="hidden sm:inline">• {FREQUENCY_OPTIONS[transaction.frequencyType]}</span>
+                      {transaction.remainderDays && transaction.remainderDays > 0 && (
+                        <span className="hidden md:inline">• {transaction.remainderDays} day(s) reminder</span>
+                      )}
+                      {(transaction.account || transaction.fromAccount) && (
+                        <span className="hidden lg:inline">
+                          • {transaction.account?.name || transaction.fromAccount?.name}
+                          {transaction.type === 'TRANSFER' && transaction.toAccount && 
+                            ` → ${transaction.toAccount.name}`
+                          }
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="p-4 sm:p-6 border-t border-gray-200">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="text-xs sm:text-sm text-gray-700 text-center sm:text-left">
-                    Showing {currentPage * pageSize + 1} to {Math.min((currentPage + 1) * pageSize, totalElements)} of {totalElements} transactions
+                <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
+                  <div className="text-right">
+                    <p className={`text-sm sm:text-base font-semibold ${getAmountColor(transaction.type)}`}>
+                      {transaction.type === 'EXPENSE' ? '-' : transaction.type === 'INCOME' ? '+' : ''}
+                      {formatCurrency(transaction.amount)}
+                    </p>
                   </div>
 
-                  <div className="flex items-center justify-center space-x-1 sm:space-x-2">
+                  <div className="flex items-center space-x-1 sm:space-x-2">
                     <button
-                      onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-                      disabled={currentPage === 0}
-                      className="p-1.5 sm:p-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => handleToggleTransaction(transaction.id)}
+                      disabled={toggleTransaction.isPending}
+                      className="p-1.5 sm:p-2 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-50 rounded-md hover:bg-gray-50"
+                      title={transaction.status === 'UPCOMING' ? 'Pause' : 'Resume'}
                     >
-                      <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                      {transaction.status === 'UPCOMING' ? (
+                        <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
+                      ) : (
+                        <Play className="w-4 h-4 sm:w-5 sm:h-5" />
+                      )}
                     </button>
-
-                    <span className="px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium bg-gray-50 rounded-md">
-                      Page {currentPage + 1} of {totalPages}
-                    </span>
-
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-                      disabled={currentPage >= totalPages - 1}
-                      className="p-1.5 sm:p-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    <Link
+                      to={`/scheduled/edit/${transaction.id}`}
+                      className="p-1.5 sm:p-2 text-gray-400 hover:text-indigo-600 transition-colors rounded-md hover:bg-gray-50"
                     >
-                      <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </Link>
+                    <button
+                      onClick={() => setTransactionToDelete({ id: transaction.id, description: transaction.description })}
+                      disabled={deleteTransaction.isPending}
+                      className="p-1.5 sm:p-2 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 rounded-md hover:bg-gray-50"
+                    >
+                      <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
                 </div>
               </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
       </div>
 

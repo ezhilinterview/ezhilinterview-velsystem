@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useState } from 'react';
 import { X, Bell } from 'lucide-react';
 import { EARLY_REMINDER_OPTIONS } from '../types/scheduledTransaction';
@@ -21,6 +22,13 @@ export default function EarlyReminderModal({
     onUpdate(selectedReminder);
     onClose();
   };
+
+  // Reset selected reminder when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedReminder(currentReminder);
+    }
+  }, [isOpen, currentReminder]);
 
   if (!isOpen) return null;
 
