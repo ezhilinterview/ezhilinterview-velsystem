@@ -33,6 +33,7 @@ function Analysis() {
   const { formatCurrency } = useFormatters();
   const [activeTab, setActiveTab] = useState(1); // Default to Month
   const [isDateRangeModalOpen, setIsDateRangeModalOpen] = useState(false);
+  const [isCustomLoading, setIsCustomLoading] = useState(false);
 
   // Current date state
   const currentDate = new Date();
@@ -40,43 +41,44 @@ function Analysis() {
   const [currentMonth, setCurrentMonth] = useState(currentDate.getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(currentDate.getFullYear());
   const [customParams, setCustomParams] = useState<Partial<AnalysisParams>>({});
+  const [customDisplayText, setCustomDisplayText] = useState('Custom');
 
   // Build API parameters based on active tab
   const getAnalysisParams = (): AnalysisParams => {
     switch (activeTab) {
       case 0: // Week
         return {
-          type: 'week',
+          type: 1,
           date: currentWeek.getDate(),
           month: currentWeek.getMonth() + 1,
           year: currentWeek.getFullYear(),
         };
       case 1: // Month
         return {
-          type: 'month',
+          type: 2,
           month: currentMonth,
           year: currentYear,
         };
       case 2: // Year
         return {
-          type: 'year',
+          type: 3,
           year: currentYear,
         };
       case 3: // Custom
         return {
-          type: customParams.type || 'custom',
+          type: customParams.type || 4,
           ...customParams,
         };
       default:
         return {
-          type: 'month',
+          type: 2,
           month: currentMonth,
           year: currentYear,
         };
     }
   };
 
-  const { data: analysisData, isLoading } = useAnalysisSummary(getAnalysisParams());
+  const { data: analysisData, isLoading, isFetching } = useAnalysisSummary(getAnalysisParams());
 
   // Navigation functions
   const navigateWeek = (direction: 'prev' | 'next') => {
@@ -108,7 +110,21 @@ function Analysis() {
   };
 
   const handleCustomDateRange = (params: Partial<AnalysisParams>) => {
+    setIsCustomLoading(true);
     setCustomParams(params);
+    
+    // Update display text based on custom params
+    if (params.type === 'all') {
+      setCustomDisplayText('All Time');
+    } else if (params.type === 4 && params.fromDate && params.toDate) {
+      const fromDate = new Date(params.fromYear!, params.fromMonth! - 1, params.fromDate);
+      const toDate = new Date(params.toYear!, params.toMonth! - 1, params.toDate);
+      setCustomDisplayText(`${fromDate.toLocaleDateString()} - ${toDate.toLocaleDateString()}`);
+    } else {
+      setCustomDisplayText('Custom Range');
+    }
+    
+    setTimeout(() => setIsCustomLoading(false), 500);
   };
 
   // Get color hex value from category color name
@@ -203,12 +219,7 @@ function Analysis() {
       case 2: // Year
         return currentYear.toString();
       case 3: // Custom
-        if (customParams.type === 'all') {
-          return 'All Time';
-        } else if (customParams.type === 'custom') {
-          return 'Custom Range';
-        }
-        return 'Custom';
+        return customDisplayText;
       default:
         return '';
     }
@@ -229,7 +240,10 @@ function Analysis() {
 
   const balance = (analysisData?.income || 0) - (analysisData?.spending || 0);
 
-  if (isLoading) {
+  const showMainLoading = isLoading && !analysisData;
+  const showCustomLoading = activeTab === 3 && (isCustomLoading || isFetching);
+
+  if (showMainLoading) {
     return (
       <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
         <div className="animate-pulse">
@@ -277,7 +291,7 @@ function Analysis() {
       </div>
 
       {/* Date Navigation */}
-      <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+      <div className={`bg-white rounded-lg shadow p-4 sm:p-6 mb-6 ${showCustomLoading ? 'opacity-50' : ''}`}>
         <div className="flex items-center justify-between">
           <button
             onClick={() => {
@@ -296,11 +310,18 @@ function Analysis() {
               {getDisplayText()}
             </h2>
             <p className="text-sm text-gray-500 capitalize">{tabs[activeTab]} Analysis</p>
+            {showCustomLoading && (
+              <div className="flex items-center justify-center mt-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                <span className="ml-2 text-xs text-gray-500">Loading...</span>
+              </div>
+            )}
           </div>
 
           {activeTab === 3 ? (
             <button
               onClick={() => setIsDateRangeModalOpen(true)}
+              disabled={showCustomLoading}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
@@ -321,7 +342,7 @@ function Analysis() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+      <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8 transition-opacity ${showCustomLoading ? 'opacity-50' : ''}`}>
         <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -369,9 +390,14 @@ function Analysis() {
       </div>
 
       {/* Categories Section */}
-      <div className="space-y-6 sm:space-y-8">
+      <div className={`space-y-6 sm:space-y-8 transition-opacity ${showCustomLoading ? 'opacity-50' : ''}`}>
         {/* Spending Categories */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className={`bg-white rounded-lg shadow p-4 sm:p-6 ${isFetching && !showCustomLoading ? 'relative' : ''}`}>
+          {isFetching && !showCustomLoading && (
+            <div className="absolute top-2 right-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
             Category-wise Spending
           </h3>
@@ -437,7 +463,12 @@ function Analysis() {
         </div>
 
         {/* Income Categories */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className={`bg-white rounded-lg shadow p-4 sm:p-6 ${isFetching && !showCustomLoading ? 'relative' : ''}`}>
+          {isFetching && !showCustomLoading && (
+            <div className="absolute top-2 right-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
             Category-wise Income
           </h3>
@@ -503,7 +534,12 @@ function Analysis() {
         </div>
 
         {/* Payment Modes Section */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className={`bg-white rounded-lg shadow p-4 sm:p-6 ${isFetching && !showCustomLoading ? 'relative' : ''}`}>
+          {isFetching && !showCustomLoading && (
+            <div className="absolute top-2 right-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
             Payment Modes
           </h3>
@@ -619,7 +655,12 @@ function Analysis() {
 
 
         {/* Statistics Section */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className={`bg-white rounded-lg shadow p-4 sm:p-6 ${isFetching && !showCustomLoading ? 'relative' : ''}`}>
+          {isFetching && !showCustomLoading && (
+            <div className="absolute top-2 right-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
             Statistics
           </h3>

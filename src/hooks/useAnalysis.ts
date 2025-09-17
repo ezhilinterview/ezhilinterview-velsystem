@@ -38,7 +38,7 @@ export interface AnalysisSummary {
 }
 
 export interface AnalysisParams {
-  type: 'week' | 'month' | 'year' | 'custom' | 'all';
+  type: 1 | 2 | 3 | 4; // 1=WEEK, 2=MONTH, 3=YEAR, 4=CUSTOM
   date?: number;
   month?: number;
   year?: number;
@@ -61,20 +61,6 @@ export const useAnalysisSummary = (params: AnalysisParams) => {
       if (params.date !== undefined) searchParams.append('date', params.date.toString());
       if (params.month !== undefined) searchParams.append('month', params.month.toString());
       if (params.year !== undefined) searchParams.append('year', params.year.toString());
-      
-      // For month type, also send from and to dates
-      if (params.type === 'month' && params.month && params.year) {
-        // First day of the month
-        searchParams.append('fromDate', '1');
-        searchParams.append('fromMonth', params.month.toString());
-        searchParams.append('fromYear', params.year.toString());
-        
-        // Last day of the month
-        const lastDay = new Date(params.year, params.month, 0).getDate();
-        searchParams.append('toDate', lastDay.toString());
-        searchParams.append('toMonth', params.month.toString());
-        searchParams.append('toYear', params.year.toString());
-      }
       
       if (params.fromDate !== undefined) searchParams.append('fromDate', params.fromDate.toString());
       if (params.fromMonth !== undefined) searchParams.append('fromMonth', params.fromMonth.toString());
