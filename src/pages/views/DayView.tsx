@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Calendar, TrendingUp, TrendingDown, ArrowUpDown, Edit, Trash2, Building2, Wallet, CreditCard, Banknote, Smartphone, FileText, Globe } from 'lucide-react';
-import { useDaySummary } from '../../hooks/useSummary';
+import { useTransactionsByDate } from '../../hooks/useTransactionsByDate';
 import { useDeleteTransaction } from '../../hooks/useTransactions';
 import { useFormatters } from '../../hooks/useFormatters';
 import { TRANSACTION_TYPES } from '../../types/transaction';
+import { DEBT_TRANSACTION_TYPES } from '../../types/debt';
+import CategoryIcon from '../../components/CategoryIcon';
 import ConfirmationModal from '../../components/ConfirmationModal';
 
 function DayView() {
@@ -23,7 +25,10 @@ function DayView() {
     parseInt(searchParams.get('year') || currentDate.getFullYear().toString())
   );
 
-  const { data: dayData, isLoading } = useDaySummary(currentDay, currentMonth, currentYear);
+  // Format date as YYYY-MM-DD for API
+  const apiDate = `${currentYear}-${currentMonth.toString().padStart(2, '0')}-${currentDay.toString().padStart(2, '0')}`;
+  
+  const { data: dayData, isLoading } = useTransactionsByDate(apiDate);
   const deleteTransaction = useDeleteTransaction();
   const { formatCurrency } = useFormatters();
 
@@ -125,6 +130,13 @@ function DayView() {
       month: 'long',
       day: 'numeric'
     });
+  const getTransactionTypeName = (type: number) => {
+    if (type >= 5 && type <= 7) {
+      return DEBT_TRANSACTION_TYPES[type as keyof typeof DEBT_TRANSACTION_TYPES];
+    }
+    return TRANSACTION_TYPES[type.toString() as keyof typeof TRANSACTION_TYPES];
+  };
+
   };
 
   const isToday = () => {
@@ -157,9 +169,9 @@ function DayView() {
     );
   }
 
-  const summary = dayData?.data;
-  const transactions = summary?.transactions || [];
-  const balance = (summary?.income || 0) - (summary?.spending || 0);
+  const summary = dayData;
+  const transactions = summary?.transactions?.content || [];
+  const balance = (summary?.totalIncome || 0) - (summary?.totalExpense || 0);
 
   return (
     <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
@@ -208,7 +220,7 @@ function DayView() {
             <div>
               <p className="text-sm font-medium text-gray-600">Income</p>
               <p className="text-2xl font-bold text-green-600">
-                {formatCurrency(summary?.income || 0)}
+                {formatCurrency(summary?.totalIncome || 0)}
               </p>
             </div>
             <div className="bg-green-100 rounded-full p-3">
@@ -222,7 +234,7 @@ function DayView() {
             <div>
               <p className="text-sm font-medium text-gray-600">Spending</p>
               <p className="text-2xl font-bold text-red-600">
-                {formatCurrency(summary?.spending || 0)}
+                {formatCurrency(summary?.totalExpense || 0)}
               </p>
             </div>
             <div className="bg-red-100 rounded-full p-3">
@@ -264,6 +276,7 @@ function DayView() {
           <div className="p-6 sm:p-8 text-center">
             <ArrowUpDown className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
               No transactions for this day
             </h3>
             <p className="text-gray-500 mb-4">
@@ -273,12 +286,21 @@ function DayView() {
         ) : (
           <div className="divide-y divide-gray-200">
             {transactions.map((transaction) => (
+              const { date: txnDate, time: txnTime } = formatDateTime(transaction.txnDate, transaction.txnTime);
               <div key={transaction.id} className="p-3 sm:p-4 lg:p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4 flex-1 min-w-0">
                   <div className="flex-shrink-0">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                      {getTransactionIcon(transaction.type)}
-                    </div>
+                    {transaction.category ? (
+                      <CategoryIcon
+                        icon={transaction.category.icon}
+                        color={transaction.category.color}
+                        size="sm"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        {getTransactionIcon(transaction.type)}
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex-1 min-w-0">
@@ -286,21 +308,32 @@ function DayView() {
                       <p className="text-sm sm:text-base font-medium text-gray-900 truncate">
                         {transaction.description || 'No description'}
                       </p>
-                      {transaction.type && (
-                        <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 flex-shrink-0">
-                          {TRANSACTION_TYPES[transaction.type.toString() as keyof typeof TRANSACTION_TYPES]}
-                        </span>
-                      )}
                     </div>
                     
                     <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 lg:space-x-4 text-xs sm:text-sm text-gray-500">
-                      <span>Transaction ID: {transaction.id.slice(0, 8)}...</span>
-                      {transaction.account && (
-                        <span className="hidden sm:inline flex items-center">
-                          • {getAccountIcon(transaction.account.type)} 
-                          <span className="ml-1">{transaction.account.name}</span>
+                      <span>{getTransactionTypeName(transaction.type)}</span>
+                      {transaction.category && <span>• {transaction.category.name}</span>}
+                      
+                      {/* Transfer specific info */}
+                      {transaction.type === 3 && transaction.fromAccount && transaction.toAccount && (
+                        <span className="flex items-center gap-1">
+                          • {getAccountIcon(transaction.fromAccount.type)} {transaction.fromAccount.name}
+                          → {getAccountIcon(transaction.toAccount.type)} {transaction.toAccount.name}
                         </span>
                       )}
+                      
+                      {/* Debt specific info */}
+                      {transaction.debt && (
+                        <span>• Debt: {transaction.debt.personName}</span>
+                      )}
+                      
+                      {/* Account info for non-transfer */}
+                      {transaction.account && (
+                        <span className="flex items-center gap-1">
+                          • {getAccountIcon(transaction.account.type)} {transaction.account.name}
+                        </span>
+                      )}
+                      
                       {transaction.paymentMode && (
                         <span className="hidden md:inline flex items-center">
                           • {getPaymentModeIcon(transaction.paymentMode.type)} 
@@ -308,15 +341,33 @@ function DayView() {
                         </span>
                       )}
                     </div>
+                    
+                    {/* Tags */}
+                    {transaction.tags && transaction.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {transaction.tags.slice(0, 3).map((tag) => (
+                          <span key={tag.id} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                            {tag.name}
+                          </span>
+                        ))}
+                        {transaction.tags.length > 3 && (
+                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                            +{transaction.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
                   <div className="text-right">
                     <p className={`text-sm sm:text-base font-semibold ${getAmountColor(transaction.type)}`}>
-                      {transaction.type === 1 ? '-' : transaction.type === 2 ? '+' : ''}
+                      {(transaction.type === 1 || transaction.type === 5) ? '-' : 
+                        (transaction.type === 2 || transaction.type === 6) ? '+' : ''}
                       {formatCurrency(transaction.amount)}
                     </p>
+                    <p className="text-xs text-gray-500">{txnTime}</p>
                   </div>
                   
                   <div className="flex items-center space-x-1 sm:space-x-2">
